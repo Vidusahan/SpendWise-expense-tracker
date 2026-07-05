@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: spendwise-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: spendwise_user
+      POSTGRES_PASSWORD: spendwise_pass
+      POSTGRES_DB: spendwise_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - spendwise_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U spendwise_user -d spendwise_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: spendwise-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '5000:5000'
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://spendwise_user:spendwise_pass@postgres:5432/spendwise_db?schema=public
+
+volumes:
+  spendwise_pgdata:

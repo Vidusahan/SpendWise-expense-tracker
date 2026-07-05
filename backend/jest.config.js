@@ -1,0 +1,16 @@
+/** @type {import('jest').Config} */
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  rootDir: 'src',
+  testMatch: ['**/__tests__/**/*.test.ts'],
+  collectCoverageFrom: [
+    'services/**/*.ts',
+    'controllers/**/*.ts',
+    'repositories/**/*.ts',
+    'utils/**/*.ts'
+  ],
+  coverageDirectory: '../coverage',
+  setupFiles: ['dotenv/config'],
+  clearMocks: true
+};
