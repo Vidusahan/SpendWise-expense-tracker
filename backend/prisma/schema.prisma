@@ -1,0 +1,136 @@
+// SpendWise — Prisma Schema
+// Phase 2: Database Schema Design
+// See docs/DATABASE.md for the ER diagram this mirrors.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  MOBILE_WALLET
+  OTHER
+}
+
+// ---------------------------------------------------------------------
+// User
+// ---------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  categories    Category[]
+  expenses      Expense[]
+  budgets       Budget[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------
+// Category
+// ---------------------------------------------------------------------
+
+model Category {
+  id     String  @id @default(uuid())
+  userId String  @map("user_id")
+  name   String
+  color  String
+  icon   String?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+  budgets  Budget[]
+
+  // A user can't have two categories with the same name — enforced at the
+  // DB level, not just in application code.
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
+}
+
+// ---------------------------------------------------------------------
+// Expense
+// ---------------------------------------------------------------------
+
+model Expense {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  categoryId    String        @map("category_id")
+  amount        Decimal       @db.Decimal(12, 2)
+  description   String?
+  date          DateTime      @db.Date
+  paymentMethod PaymentMethod @default(OTHER) @map("payment_method")
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // Every list/filter/analytics query filters by user first, and usually
+  // narrows by date range or category next — these composite indexes
+  // match that access pattern instead of indexing columns individually.
+  @@index([userId, date])
+  @@index([userId, categoryId])
+  @@map("expenses")
+}
+
+// ---------------------------------------------------------------------
+// Budget
+// ---------------------------------------------------------------------
+
+model Budget {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  categoryId String   @map("category_id")
+  amount     Decimal  @db.Decimal(12, 2)
+  month      Int // 1-12
+  year       Int
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // One budget per category per month per user — this is what makes
+  // "budget usage" a well-defined lookup instead of an aggregation over
+  // ambiguous duplicates.
+  @@unique([userId, categoryId, month, year])
+  @@index([userId, year, month])
+  @@map("budgets")
+}
+
+// ---------------------------------------------------------------------
+// RefreshToken  (needed by Phase 4, modeled now so User relations are complete)
+// ---------------------------------------------------------------------
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
